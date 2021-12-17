@@ -124,8 +124,8 @@ void MapLevel::frame() {
         registry.view<const PositionComponent, const HitboxComponent>();
     drawingView.each(
         [](const PositionComponent &position, const HitboxComponent &hitbox) {
-            DrawRectangle(position.x + hitbox.x, position.y + hitbox.y,
-                          hitbox.width, hitbox.height, RED);
+            DrawRectangleRec({position.x + hitbox.x, position.y + hitbox.y,
+                          hitbox.width, hitbox.height}, RED);
         });
 
     EndMode2D();
