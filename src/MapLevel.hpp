@@ -13,8 +13,8 @@ struct MapLevel {
     Camera2D camera;
     entt::registry registry;
 
-    void collide(float x, float y, PositionComponent &position,
-                 HitboxComponent &hitbox, PlayerComponent &player);
+    void collide(float x, float y, PhysicsComponent &position,
+                 HitboxComponent &hitbox);
     void frame();
 
     MapLevel(tson::Tileson &tileson, const std::filesystem::path &resources);

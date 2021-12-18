@@ -1,7 +1,9 @@
 #include "MapLevel.hpp"
+#include <raylib.h>
+#include <algorithm>
 
-void MapLevel::collide(float x, float y, PositionComponent &position,
-                       HitboxComponent &hitbox, PlayerComponent &player) {
+void MapLevel::collide(float x, float y, PhysicsComponent &physC,
+                       HitboxComponent &hitbox) {
     tson::TileObject *tileObject = tileLayer->getTileObject(
         x / tsonMap->getTileSize().x, y / tsonMap->getTileSize().y);
     if (tileObject != nullptr) {
@@ -12,32 +14,34 @@ void MapLevel::collide(float x, float y, PositionComponent &position,
                 tson::Vector2i bbSize = object.getSize();
                 tson::Vector2i bbPos = object.getPosition();
 
-                Rectangle collision = GetCollisionRec(
-                    {position.x + hitbox.x, position.y + hitbox.y, hitbox.width,
-                     hitbox.height},
-                    {tilePos.x + bbPos.x, tilePos.y + bbPos.y,
-                     static_cast<float>(bbSize.x),
-                     static_cast<float>(bbSize.y)});
+                Rectangle collision =
+                    GetCollisionRec({physC.x + hitbox.x, physC.y + hitbox.y,
+                                     hitbox.width, hitbox.height},
+                                    {tilePos.x + bbPos.x, tilePos.y + bbPos.y,
+                                     static_cast<float>(bbSize.x),
+                                     static_cast<float>(bbSize.y)});
 
                 if (collision.width != collision.height &&
                     collision.width != 0 && collision.height != 0) {
                     if (collision.width < collision.height &&
-                        position.x < tilePos.x) {
-                        position.x -= collision.width;
+                        physC.x < tilePos.x) {
+                        physC.x -= collision.width;
+                        physC.xVelocity = 0;
                     } else if (collision.width < collision.height &&
-                               position.x > tilePos.x) {
-                        position.x += collision.width;
+                               physC.x > tilePos.x) {
+                        physC.x += collision.width;
+                        physC.xVelocity = 0;
                     }
 
                     if (collision.width > collision.height &&
-                        tilePos.y + 1 < position.y + hitbox.y) {
-                        position.y += collision.height;
-                        player.verticalSpeed = 0.0f;
+                        tilePos.y + 1 < physC.y + hitbox.y) {
+                        physC.y += collision.height;
+                        physC.yVelocity = 0.0f;
                     } else if (collision.width > collision.height &&
                                tilePos.y) {
-                        position.y -= collision.height;
-                        player.canJump = true;
-                        player.verticalSpeed = 0.0f;
+                        physC.y -= collision.height;
+                        physC.yVelocity = 0.0f;
+                        physC.isOnGround = true;
                     }
                 }
             }
@@ -55,9 +59,10 @@ MapLevel::MapLevel(tson::Tileson &tileson,
     }
 
     entt::entity entity = registry.create();
-    registry.emplace<PositionComponent>(entity, 100.0f, 20.0f);
+    registry.emplace<PhysicsComponent>(entity, 100.0f, 20.0f, 0.0f, 0.0f,
+                                       false);
     registry.emplace<HitboxComponent>(entity, -8.0f, -16.0f, 16.0f, 16.0f);
-    registry.emplace<PlayerComponent>(entity, 0.0f, false);
+    registry.emplace<PlayerComponent>(entity);
 
     camera.target = {100, 20};
     camera.offset = {GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f};
@@ -66,40 +71,69 @@ MapLevel::MapLevel(tson::Tileson &tileson,
 }
 
 void MapLevel::frame() {
-    registry.view<PositionComponent, HitboxComponent, PlayerComponent>().each(
-        [this](PositionComponent &position, HitboxComponent &hitbox,
+    registry.view<PhysicsComponent, HitboxComponent, PlayerComponent>().each(
+        [this](PhysicsComponent &physC, HitboxComponent &hitbox,
                PlayerComponent &player) {
-            float delta = GetFrameTime();
-            if (IsKeyDown(KEY_LEFT)) {
-                position.x -= 200.0f * delta;
+            {
+                double now = GetTime();
+                if (IsKeyPressed(KEY_SPACE)) {
+                    player.lastJump = GetTime();
+                }
+
+                bool wantsToJump = false;
+
+                if (player.lastJump >= 0 && now - player.lastJump < 0.1) {
+                    wantsToJump = true;
+                }
+
+                if (physC.isOnGround) {
+                    player.lastGrounded = now;
+                }
+
+                if (wantsToJump && now - player.lastGrounded < 0.1) {
+                    physC.yVelocity = -130.0f;
+                }
+
+                constexpr float minimumJumpVelocity = -60.0f;
+                if (IsKeyUp(KEY_SPACE) &&
+                    (physC.yVelocity < minimumJumpVelocity ||
+                     physC.yVelocity == -130.0f)) {
+                    physC.yVelocity = minimumJumpVelocity;
+                }
             }
+            {
+                float delta = GetFrameTime();
+                constexpr float movementAcceleration = 900.0f;
+                constexpr float maxMovementSpeed = 100.0f;
+                constexpr float gravity = 200.0f;
+                if (IsKeyDown(KEY_A)) {
+                    physC.xVelocity -= movementAcceleration * delta;
+                }
 
-            if (IsKeyDown(KEY_RIGHT)) {
-                position.x += 200.0f * delta;
+                if (IsKeyDown(KEY_D)) {
+                    physC.xVelocity += movementAcceleration * delta;
+                }
+
+                constexpr float damping = 4.0f;
+                physC.xVelocity /= 1 + damping * delta;
+                physC.xVelocity = std::clamp(physC.xVelocity, -maxMovementSpeed, maxMovementSpeed);
+                physC.yVelocity += gravity * delta;
+                physC.y += physC.yVelocity * delta;
+                physC.x += physC.xVelocity * delta;
             }
-
-            if (IsKeyDown(KEY_SPACE) && player.canJump) {
-                player.verticalSpeed = -80.0f;
-                player.canJump = false;
-            }
-
-            player.verticalSpeed += 80.0f * delta;
-            position.y += player.verticalSpeed * delta;
-
             if (!IsKeyDown(KEY_E)) {
-                collide(position.x + hitbox.x, position.y + hitbox.y, position,
-                        hitbox, player);
-                collide(position.x + hitbox.x,
-                        position.y + hitbox.y + hitbox.height, position, hitbox,
-                        player);
-                collide(position.x + hitbox.x + hitbox.width,
-                        position.y + hitbox.y, position, hitbox, player);
-                collide(position.x + hitbox.x + hitbox.width,
-                        position.y + hitbox.y + hitbox.height, position, hitbox,
-                        player);
+                physC.isOnGround = false;
+
+                collide(physC.x + hitbox.x, physC.y + hitbox.y, physC, hitbox);
+                collide(physC.x + hitbox.x, physC.y + hitbox.y + hitbox.height,
+                        physC, hitbox);
+                collide(physC.x + hitbox.x + hitbox.width, physC.y + hitbox.y,
+                        physC, hitbox);
+                collide(physC.x + hitbox.x + hitbox.width,
+                        physC.y + hitbox.y + hitbox.height, physC, hitbox);
             }
 
-            camera.target = {position.x, position.y};
+            camera.target = {physC.x, physC.y};
         });
     camera.offset = {GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f};
     BeginMode2D(camera);
@@ -121,11 +155,12 @@ void MapLevel::frame() {
     }
 
     auto drawingView =
-        registry.view<const PositionComponent, const HitboxComponent>();
+        registry.view<const PhysicsComponent, const HitboxComponent>();
     drawingView.each(
-        [](const PositionComponent &position, const HitboxComponent &hitbox) {
+        [](const PhysicsComponent &position, const HitboxComponent &hitbox) {
             DrawRectangleRec({position.x + hitbox.x, position.y + hitbox.y,
-                          hitbox.width, hitbox.height}, RED);
+                              hitbox.width, hitbox.height},
+                             RED);
         });
 
     EndMode2D();

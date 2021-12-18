@@ -1,8 +1,13 @@
 #pragma once
 
-struct PositionComponent {
+struct PhysicsComponent {
     float x;
     float y;
+
+    float yVelocity;
+    float xVelocity;
+
+    bool isOnGround;
 };
 
 struct HitboxComponent {
@@ -13,6 +18,6 @@ struct HitboxComponent {
 };
 
 struct PlayerComponent {
-    float verticalSpeed;
-    bool canJump;
+    double lastJump = -1.0;
+    double lastGrounded = -1.0;
 };

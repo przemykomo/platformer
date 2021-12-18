@@ -18,6 +18,8 @@ raylib_dep = cc.find_library('raylib', required : false)
 cmake = import('cmake')
 entt_subproject = cmake.subproject('entt')
 entt_dep = entt_subproject.dependency('EnTT')
+#raylib_subproject = cmake.subproject('raylib')
+#raylib_dep = raylib_subproject.dependency('raylib')
 
 inc_dir = include_directories(
   'src'
