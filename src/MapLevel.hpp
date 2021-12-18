@@ -9,6 +9,7 @@ struct MapLevel {
   public:
     std::unique_ptr<tson::Map> tsonMap;
     tson::Layer *tileLayer;
+    tson::Layer *objectLayer;
     std::map<tson::Tileset *, Texture2D> textures;
     Camera2D camera;
     entt::registry registry;

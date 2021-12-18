@@ -1,6 +1,7 @@
 #include "MapLevel.hpp"
-#include <raylib.h>
+#include "src/tileson.hpp"
 #include <algorithm>
+#include <raylib.h>
 
 void MapLevel::collide(float x, float y, PhysicsComponent &physC,
                        HitboxComponent &hitbox) {
@@ -52,15 +53,24 @@ void MapLevel::collide(float x, float y, PhysicsComponent &physC,
 MapLevel::MapLevel(tson::Tileson &tileson,
                    const std::filesystem::path &resources)
     : tsonMap(tileson.parse(resources / "level.json")),
-      tileLayer(tsonMap->getLayer("Tile Layer 1")) {
+      tileLayer(tsonMap->getLayer("Tile Layer 1")),
+      objectLayer(tsonMap->getLayer("Object Layer 1")) {
     for (tson::Tileset &tileset : tsonMap->getTilesets()) {
         textures.emplace(&tileset,
                          LoadTexture((resources / tileset.getImage()).c_str()));
     }
 
     entt::entity entity = registry.create();
-    registry.emplace<PhysicsComponent>(entity, 100.0f, 20.0f, 0.0f, 0.0f,
-                                       false);
+    tson::Object *playerObject = objectLayer->firstObj("player");
+    if (playerObject == nullptr) {
+        registry.emplace<PhysicsComponent>(entity, 0.0f, 0.0f, 0.0f, 0.0f,
+                                           false);
+    } else {
+        tson::Vector2i pos = playerObject->getPosition();
+        std::cout << pos.x << ", " << pos.y << std::endl;
+        registry.emplace<PhysicsComponent>(entity, pos.x, pos.y, 0.0f, 0.0f,
+                                           false);
+    }
     registry.emplace<HitboxComponent>(entity, -8.0f, -16.0f, 16.0f, 16.0f);
     registry.emplace<PlayerComponent>(entity);
 
@@ -116,7 +126,8 @@ void MapLevel::frame() {
 
                 constexpr float damping = 4.0f;
                 physC.xVelocity /= 1 + damping * delta;
-                physC.xVelocity = std::clamp(physC.xVelocity, -maxMovementSpeed, maxMovementSpeed);
+                physC.xVelocity = std::clamp(physC.xVelocity, -maxMovementSpeed,
+                                             maxMovementSpeed);
                 physC.yVelocity += gravity * delta;
                 physC.y += physC.yVelocity * delta;
                 physC.x += physC.xVelocity * delta;
