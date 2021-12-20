@@ -18,6 +18,8 @@ raylib_dep = cc.find_library('raylib', required : false)
 cmake = import('cmake')
 entt_subproject = cmake.subproject('entt')
 entt_dep = entt_subproject.dependency('EnTT')
+box2d_subproject = cmake.subproject('box2d')
+box2d_dep = box2d_subproject.dependency('box2d')
 #raylib_subproject = cmake.subproject('raylib')
 #raylib_dep = raylib_subproject.dependency('raylib')
 
@@ -34,5 +36,5 @@ source_cpp = [
 # Build executable
 projectname = executable('platformer',
   source_cpp,
-  dependencies : [ raylib_dep, gl_dep, m_dep, entt_dep ],
+  dependencies : [ raylib_dep, gl_dep, m_dep, entt_dep, box2d_dep ],
   cpp_args: extra_args)

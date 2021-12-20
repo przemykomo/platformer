@@ -1,7 +1,12 @@
 #include "MapLevel.hpp"
+#include "box2d/b2_body.h"
+#include "box2d/b2_fixture.h"
+#include "box2d/b2_polygon_shape.h"
 #include "src/tileson.hpp"
 #include <algorithm>
 #include <raylib.h>
+
+constexpr float BOX2D_SCALE = 1.0f / 16.0f;
 
 void MapLevel::collide(float x, float y, PhysicsComponent &physC,
                        HitboxComponent &hitbox) {
@@ -54,7 +59,9 @@ MapLevel::MapLevel(tson::Tileson &tileson,
                    const std::filesystem::path &resources)
     : tsonMap(tileson.parse(resources / "level.json")),
       tileLayer(tsonMap->getLayer("Tile Layer 1")),
-      objectLayer(tsonMap->getLayer("Object Layer 1")) {
+      objectLayer(tsonMap->getLayer("Object Layer 1")),
+      colliderLayer(tsonMap->getLayer("collider layer")),
+        world({0.0f, 10.0f}) {
     for (tson::Tileset &tileset : tsonMap->getTilesets()) {
         textures.emplace(&tileset,
                          LoadTexture((resources / tileset.getImage()).c_str()));
@@ -67,7 +74,6 @@ MapLevel::MapLevel(tson::Tileson &tileson,
                                            false);
     } else {
         tson::Vector2i pos = playerObject->getPosition();
-        std::cout << pos.x << ", " << pos.y << std::endl;
         registry.emplace<PhysicsComponent>(entity, pos.x, pos.y, 0.0f, 0.0f,
                                            false);
     }
@@ -78,9 +84,30 @@ MapLevel::MapLevel(tson::Tileson &tileson,
     camera.offset = {GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f};
     camera.rotation = 0.0f;
     camera.zoom = 3.0f;
+
+    b2BodyDef groundBodyDef;
+    groundBodyDef.position.Set(16 * BOX2D_SCALE, 96 * BOX2D_SCALE);
+    b2Body* groundBody = world.CreateBody(&groundBodyDef);
+    b2PolygonShape groundBox;
+    groundBox.SetAsBox(80.0f / 2.0f * BOX2D_SCALE, 16.0f / 2.0f * BOX2D_SCALE);
+    groundBody->CreateFixture(&groundBox, 0.0f);
+
+    b2BodyDef bodyDef;
+    bodyDef.type = b2_dynamicBody;
+    bodyDef.position.Set(46 * BOX2D_SCALE, 10 * BOX2D_SCALE);
+    playerBody = world.CreateBody(&bodyDef);
+    b2PolygonShape dynamicBox;
+    dynamicBox.SetAsBox(16.0f / 2.0f * BOX2D_SCALE, 16.0f / 2.0f * BOX2D_SCALE);
+    b2FixtureDef fixtureDef;
+    fixtureDef.shape = &dynamicBox;
+    fixtureDef.density = 1.0f;
+    fixtureDef.friction = 0.3f;
+    playerBody->CreateFixture(&fixtureDef);
 }
 
 void MapLevel::frame() {
+    world.Step(1.0f / 60.0f, 6, 2);
+    std::cout << playerBody->GetPosition().y << '\n';
     registry.view<PhysicsComponent, HitboxComponent, PlayerComponent>().each(
         [this](PhysicsComponent &physC, HitboxComponent &hitbox,
                PlayerComponent &player) {
@@ -173,6 +200,12 @@ void MapLevel::frame() {
                               hitbox.width, hitbox.height},
                              RED);
         });
+
+    for (const tson::Object &collider : colliderLayer->getObjects()) {
+        tson::Vector2i pos = collider.getPosition();
+        tson::Vector2i size = collider.getSize();
+        DrawRectangleLines(pos.x, pos.y, size.x, size.y, WHITE);
+    }
 
     EndMode2D();
 }
