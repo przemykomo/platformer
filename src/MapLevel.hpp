@@ -20,7 +20,6 @@ struct MapLevel {
     entt::registry registry;
 
     b2World world;
-    b2Body *playerBody;
 
     void collide(float x, float y, PhysicsComponent &position,
                  HitboxComponent &hitbox);

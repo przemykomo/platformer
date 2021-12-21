@@ -1,5 +1,6 @@
 #pragma once
 
+#include "box2d/b2_body.h"
 struct PhysicsComponent {
     float x;
     float y;
@@ -8,6 +9,8 @@ struct PhysicsComponent {
     float xVelocity;
 
     bool isOnGround;
+
+    b2Body *body;
 };
 
 struct HitboxComponent {
